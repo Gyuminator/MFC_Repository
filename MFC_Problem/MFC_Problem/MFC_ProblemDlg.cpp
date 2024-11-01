@@ -53,12 +53,20 @@ END_MESSAGE_MAP()
 CMFC_ProblemDlg::CMFC_ProblemDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(IDD_MFC_PROBLEM_DIALOG, pParent)
 	, m_Image()
+	, m_ImageDirPath()
 	, m_nStartX(0)
 	, m_nStartY(0)
 	, m_nEndX(0)
 	, m_nEndY(0)
+	, m_nFrams(10)
+	, m_nMsPerFrame(500)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+
+	LPWSTR pBuffer = m_ImageDirPath.GetBuffer(PATH_LENG);
+	GetCurrentDirectory(PATH_LENG, pBuffer);
+	m_ImageDirPath.ReleaseBuffer();
+	m_ImageDirPath += _T("\\img\\");
 }
 
 void CMFC_ProblemDlg::DoDataExchange(CDataExchange* pDX)
@@ -68,6 +76,8 @@ void CMFC_ProblemDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_EDIT_START_Y, m_nStartY);
 	DDX_Text(pDX, IDC_EDIT_END_X, m_nEndX);
 	DDX_Text(pDX, IDC_EDIT_END_Y, m_nEndY);
+	DDX_Text(pDX, IDC_EDIT_FRAMES, m_nFrams);
+	DDX_Text(pDX, IDC_EDIT_MSPF, m_nMsPerFrame);
 }
 
 BEGIN_MESSAGE_MAP(CMFC_ProblemDlg, CDialogEx)
@@ -75,6 +85,7 @@ BEGIN_MESSAGE_MAP(CMFC_ProblemDlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BTN_DRAW, &CMFC_ProblemDlg::OnBnClickedBtnDraw)
+	ON_BN_CLICKED(IDC_BTN_ACTION, &CMFC_ProblemDlg::OnBnClickedBtnAction)
 END_MESSAGE_MAP()
 
 
@@ -110,8 +121,6 @@ BOOL CMFC_ProblemDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다.
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
-	Sleep(100);
-	_CreateImage();
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -165,14 +174,14 @@ HCURSOR CMFC_ProblemDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-void CMFC_ProblemDlg::_CreateImage()
+void CMFC_ProblemDlg::_CreateImage(UINT8 nGrayOfBG)
 {
 	int nWidth = 640;
 	int nHeight = 480;
 	int nBpp = 8;
 	constexpr int RGBSIZE = 256;
 
-	m_Image.Create(nWidth, nHeight, nBpp);
+	m_Image.Create(nWidth, -nHeight, nBpp);
 	if (nBpp == 8)
 	{
 		static RGBQUAD rgb[RGBSIZE];
@@ -180,7 +189,7 @@ void CMFC_ProblemDlg::_CreateImage()
 			rgb[i].rgbRed = rgb[i].rgbGreen = rgb[i].rgbBlue = i;
 		m_Image.SetColorTable(0, 256, rgb);
 	}
-
+	memset(m_Image.GetBits(), nGrayOfBG, m_Image.GetWidth() * m_Image.GetHeight());
 }
 
 void CMFC_ProblemDlg::_DrawImage()
@@ -192,30 +201,118 @@ void CMFC_ProblemDlg::_DrawImage()
 	m_Image.Draw(dc, 0, 0);
 }
 
-void CMFC_ProblemDlg::_DrawCircle(int nCenterX, int nCenterY, int nRadius)
+void CMFC_ProblemDlg::_DrawCircle(int nCenterX, int nCenterY, int nRadius, UINT8 nGray, bool bIsDraw)
 {
-	CRect rect(nCenterX - nRadius, nCenterY - nRadius, nCenterX + nRadius, nCenterY + nRadius);
-	unsigned char* fm = (unsigned char*)m_Image.GetBits();
-	UINT8 nGray = 255;
+	//CRect rect(nCenterX - nRadius, nCenterY - nRadius, nCenterX + nRadius, nCenterY + nRadius);
+	int nDiameter = nRadius * 2;
+	CRect rect = _MakeRectbyCenter({ nCenterX, nCenterY }, { nDiameter, nDiameter });
 
 	for (int y = rect.top; y < rect.bottom; ++y)
 	{
 		for (int x = rect.left; x < rect.right; ++x)
 		{
-			if (x * x + y * y <= nRadius * nRadius)
-				m_Image.SetPixel(x, y, RGB(nGray, nGray, nGray));
+			if (_IsInCircle(x - nCenterX, y - nCenterY, nRadius))
+				_SetPixel(x, y, nGray);
 		}
 	}
+
+	if (bIsDraw)
+	{
+		_DrawImage();
+	}
+}
+
+void CMFC_ProblemDlg::_DrawRect(CRect rect, UINT8 nGray, bool bIsDraw)
+{
+	for (int y = rect.top; y < rect.bottom; ++y)
+	{
+		for (int x = rect.left; x < rect.right; ++x)
+		{
+			_SetPixel(x, y, nGray);
+		}
+	}
+
+	if (bIsDraw)
+	{
+		_DrawImage();
+	}
+}
+
+void CMFC_ProblemDlg::_MoveCircle(int nRadius, POINT startPos, POINT endPos)
+{
+	// m_nFrams = GetDlgItemInt(IDC_EDIT_FRAMES);
+	float fAlpha = 0.f;
+	float fPrevAlpha = 0.f;
+	float fEndAlpha = 1.f;
+	m_nFrams = (m_nFrams < 2) ? 2 : m_nFrams;
+	float fDeltaAlpha = fEndAlpha / (m_nFrams - 1);
+
+	int nDiameter = nRadius * 2;
+	int nGrayOfBG = 0xff;
+	int nX = _LerpInt(startPos.x, endPos.x, fAlpha);
+	int nY = _LerpInt(startPos.y, endPos.y, fAlpha);
+	bool bKeep = true;
+
+	_DrawCircle(m_nStartX, m_nStartY, m_nRadius);
+	// 캡쳐
+	Sleep(m_nMsPerFrame);
+
+	while (bKeep)
+	{
+		// 이전 원 클리어
+		_DrawRect(_MakeRectbyCenter({ nX,nY }, { nDiameter, nDiameter }), nGrayOfBG, false); // bIsDraw = false: _DrawCircle에서 한번에 합니다.
+
+		fAlpha += fDeltaAlpha;
+		if (fAlpha >= fEndAlpha)
+		{
+			fAlpha = fEndAlpha;
+			bKeep = false;
+		}
+		nX = _LerpInt(startPos.x, endPos.x, fAlpha);
+		nY = _LerpInt(startPos.y, endPos.y, fAlpha);
+
+		_DrawCircle(nX, nY, nRadius);
+		// 캡쳐
+
+		Sleep(m_nMsPerFrame);
+	}
+}
+
+void CMFC_ProblemDlg::_CaptureImage(CString filePath)
+{
+
+
+	//m_Image.Save()
 }
 
 void CMFC_ProblemDlg::OnBnClickedBtnDraw()
 {
 	// TODO: Add your control notification handler code here
+	UINT8 nGrayOfBG = 0xff;
+	if (m_Image.IsNull())
+		_CreateImage();
+	else
+		memset(m_Image.GetBits(), nGrayOfBG, m_Image.GetWidth() * m_Image.GetHeight());
+
+	UpdateData(TRUE);
+
+	int nRadiusMin = 10;
+	int nRadiusMax = 100;
+	m_nRadius = rand() % (nRadiusMax - nRadiusMin) + nRadiusMin;
+
+	_DrawCircle(m_nStartX, m_nStartY, m_nRadius);
+}
+
+void CMFC_ProblemDlg::OnBnClickedBtnAction()
+{
+	// TODO: Add your control notification handler code here
 	if (m_Image.IsNull())
 		_CreateImage();
 
-	_DrawCircle(100, 100, 50);
+	m_nEndX = GetDlgItemInt(IDC_EDIT_END_X);
+	m_nEndY = GetDlgItemInt(IDC_EDIT_END_Y);
+	m_nFrams = GetDlgItemInt(IDC_EDIT_FRAMES);
+	m_nMsPerFrame = GetDlgItemInt(IDC_EDIT_MSPF);
 
-	CClientDC dc(this);
-	m_Image.Draw(dc, 0, 0);
+	_MoveCircle(m_nRadius, { m_nStartX, m_nStartY }, { m_nEndX, m_nEndY });
 }
