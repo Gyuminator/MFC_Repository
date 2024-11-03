@@ -1,0 +1,27 @@
+#include <string>
+#include <vector>
+#include <unordered_set>
+
+using namespace std;
+
+int solution(vector<string> order) {
+    int answer = 0;
+    
+    unordered_set<string> ameriacnos;
+    ameriacnos.reserve(6);
+    ameriacnos.insert("iceamericano");
+    ameriacnos.insert("americanoice");
+    ameriacnos.insert("hotamericano");
+    ameriacnos.insert("americanohot");
+    ameriacnos.insert("americano");
+    ameriacnos.insert("anything");
+    
+    for(const string& menu : order)
+    {
+        if(ameriacnos.find(menu) == ameriacnos.end())
+            answer += 5000;
+        else
+            answer += 4500;
+    }
+    return answer;
+}

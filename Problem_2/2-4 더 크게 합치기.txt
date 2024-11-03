@@ -1,0 +1,52 @@
+#include <string>
+#include <vector>
+
+using namespace std;
+
+int solution(int a, int b) {
+    vector<int> vA;
+    vA.reserve(4);
+    vector<int> vB;
+    vB.reserve(4);
+    
+    while(a != 0)
+    {
+        vA.push_back(a % 10);
+        a /= 10;
+    }
+    
+    while(b != 0)
+    {
+        vB.push_back(b % 10);
+        b /= 10;
+    }
+    
+    int abMulFactor = 1;
+    int ab = 0;
+    for(auto iter = vA.begin(); iter != vA.end(); ++iter)
+    {
+        ab += (*iter) * abMulFactor;
+        abMulFactor *= 10;
+    }
+    
+    int baMulFactor = 1;
+    int ba = 0;
+    for(auto iter = vB.begin(); iter != vB.end(); ++iter)
+    {
+        ab += (*iter) * abMulFactor;
+        ba += (*iter) * baMulFactor;
+        abMulFactor *= 10;
+        baMulFactor *= 10;
+    }
+    
+    for(auto iter = vA.begin(); iter != vA.end(); ++iter)
+    {
+        ba += (*iter) * baMulFactor;
+        baMulFactor *= 10;
+    }
+    
+    if(ab >= ba)
+        return ab;
+    else
+        return ba;
+}

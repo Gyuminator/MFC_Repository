@@ -4,6 +4,8 @@
 
 #pragma once
 
+// 이미지 배경 명암 0~255
+#define GRAY_OF_BG 255
 
 // CMFC_ProblemDlg 대화 상자
 class CMFC_ProblemDlg : public CDialogEx
@@ -36,32 +38,43 @@ protected:
 
 private:
 	// private 멤버 함수 _
-	void _CreateImage(UINT8 nGrayOfBG = 255);
+	void _CreateImage(UINT8 nGrayOfBG = GRAY_OF_BG);
 	void _DrawImage();
 	void _DrawCircle(int nCenterX, int nCenterY, int nRadius, UINT8 nGray = 0, bool bIsDraw = true);
 	void _DrawRect(CRect rect, UINT8 nGray = 0, bool bIsDraw = true);
-	void _SetPixel(const int nX, const int nY, const UINT8 color)
-	{
-		if (_IsValidPos(nX, nY))
-			((UINT8*)m_Image.GetBits())[nY*m_Image.GetPitch() + nX] = color;
-	}
+	void _SetPixel(const int nX, const int nY, const UINT8 color);
 	void _MoveCircle(const int nRadius, const  POINT startPos, const  POINT endPos);
-	void _CaptureImage(CString filePath);
+	void _CaptureImage(const CString&& fileName);
+	void _OpenImage();
 
-	bool _IsValidPos(const int nX, const int nY) const { return CRect(0, 0, m_Image.GetWidth(), m_Image.GetHeight()).PtInRect({ nX, nY }); }
+	bool _IsValidPos(const int nX, const int nY) const { return (bool)CRect(0, 0, m_Image.GetWidth(), m_Image.GetHeight()).PtInRect({ nX, nY }); }
 	bool _IsInCircle(const int nX, const int nY, const int nRadius) const { return nX * nX + nY * nY <= nRadius * nRadius; }
 
+	int _GetPixel(const int nX, const int nY) const;
 	int _LerpInt(const int nStart, const int nEnd, const float fAlpha) const { return nStart + (int)((nEnd - nStart) * fAlpha); }
 
 	CRect _MakeRectbyCenter(POINT centerPos, SIZE size) const
-	{ return CRect(centerPos.x - size.cx / 2, centerPos.y - size.cy / 2, centerPos.x + size.cx / 2, centerPos.y + size.cy / 2); }
+	{
+		return CRect(centerPos.x - size.cx / 2, centerPos.y - size.cy / 2, centerPos.x + size.cx / 2, centerPos.y + size.cy / 2);
+	}
+
+	// 1개의 정수형을 포멧팅 합니다.
+	CString _MakeImageName(TCHAR* strName, int nNumber)
+	{
+		CString str;
+		str.Format(strName, nNumber);
+		return str;
+	}
+
+	// 무게 중심을 찾습니다
+	POINT _FindCenterOfGravity();
 
 public:
 	afx_msg void OnBnClickedBtnDraw();
 	afx_msg void OnBnClickedBtnAction();
 private:
 	CImage m_Image;
-	CString m_ImageDirPath;
+	CString m_strImageDirPath;
 
 	int m_nStartX;
 	int m_nStartY;
@@ -70,4 +83,6 @@ private:
 	int m_nFrams;
 	int m_nMsPerFrame;
 	int m_nRadius;
+public:
+	afx_msg void OnBnClickedBtnOpen();
 };

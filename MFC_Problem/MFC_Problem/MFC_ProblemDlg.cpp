@@ -53,20 +53,20 @@ END_MESSAGE_MAP()
 CMFC_ProblemDlg::CMFC_ProblemDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(IDD_MFC_PROBLEM_DIALOG, pParent)
 	, m_Image()
-	, m_ImageDirPath()
+	, m_strImageDirPath()
 	, m_nStartX(0)
 	, m_nStartY(0)
 	, m_nEndX(0)
 	, m_nEndY(0)
 	, m_nFrams(10)
-	, m_nMsPerFrame(500)
+	, m_nMsPerFrame(100)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 
-	LPWSTR pBuffer = m_ImageDirPath.GetBuffer(PATH_LENG);
+	LPWSTR pBuffer = m_strImageDirPath.GetBuffer(PATH_LENG);
 	GetCurrentDirectory(PATH_LENG, pBuffer);
-	m_ImageDirPath.ReleaseBuffer();
-	m_ImageDirPath += _T("\\img\\");
+	m_strImageDirPath.ReleaseBuffer();
+	m_strImageDirPath += _T("\\image\\");
 }
 
 void CMFC_ProblemDlg::DoDataExchange(CDataExchange* pDX)
@@ -86,6 +86,7 @@ BEGIN_MESSAGE_MAP(CMFC_ProblemDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_BN_CLICKED(IDC_BTN_DRAW, &CMFC_ProblemDlg::OnBnClickedBtnDraw)
 	ON_BN_CLICKED(IDC_BTN_ACTION, &CMFC_ProblemDlg::OnBnClickedBtnAction)
+	ON_BN_CLICKED(IDC_BTN_OPEN, &CMFC_ProblemDlg::OnBnClickedBtnOpen)
 END_MESSAGE_MAP()
 
 
@@ -121,6 +122,7 @@ BOOL CMFC_ProblemDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다.
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
+
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -238,9 +240,16 @@ void CMFC_ProblemDlg::_DrawRect(CRect rect, UINT8 nGray, bool bIsDraw)
 	}
 }
 
+void CMFC_ProblemDlg::_SetPixel(const int nX, const int nY, const UINT8 color)
+{
+	if (_IsValidPos(nX, nY))
+		((UINT8*)m_Image.GetBits())[nY*m_Image.GetPitch() + nX] = color;
+}
+
 void CMFC_ProblemDlg::_MoveCircle(int nRadius, POINT startPos, POINT endPos)
 {
-	// m_nFrams = GetDlgItemInt(IDC_EDIT_FRAMES);
+	memset(m_Image.GetBits(), GRAY_OF_BG, m_Image.GetWidth() * m_Image.GetHeight());
+
 	float fAlpha = 0.f;
 	float fPrevAlpha = 0.f;
 	float fEndAlpha = 1.f;
@@ -248,19 +257,21 @@ void CMFC_ProblemDlg::_MoveCircle(int nRadius, POINT startPos, POINT endPos)
 	float fDeltaAlpha = fEndAlpha / (m_nFrams - 1);
 
 	int nDiameter = nRadius * 2;
-	int nGrayOfBG = 0xff;
 	int nX = _LerpInt(startPos.x, endPos.x, fAlpha);
 	int nY = _LerpInt(startPos.y, endPos.y, fAlpha);
 	bool bKeep = true;
 
+	int nCaptureNumber = 0;
+
 	_DrawCircle(m_nStartX, m_nStartY, m_nRadius);
 	// 캡쳐
+	_CaptureImage(_MakeImageName(_T("Circle_%d.bmp"), nCaptureNumber++));
 	Sleep(m_nMsPerFrame);
 
 	while (bKeep)
 	{
 		// 이전 원 클리어
-		_DrawRect(_MakeRectbyCenter({ nX,nY }, { nDiameter, nDiameter }), nGrayOfBG, false); // bIsDraw = false: _DrawCircle에서 한번에 합니다.
+		_DrawRect(_MakeRectbyCenter({ nX,nY }, { nDiameter, nDiameter }), GRAY_OF_BG, false); // bIsDraw = false: _DrawCircle에서 한번에 합니다.
 
 		fAlpha += fDeltaAlpha;
 		if (fAlpha >= fEndAlpha)
@@ -273,26 +284,109 @@ void CMFC_ProblemDlg::_MoveCircle(int nRadius, POINT startPos, POINT endPos)
 
 		_DrawCircle(nX, nY, nRadius);
 		// 캡쳐
-
+		_CaptureImage(_MakeImageName(_T("Circle_%d.bmp"), nCaptureNumber++));
 		Sleep(m_nMsPerFrame);
 	}
 }
 
-void CMFC_ProblemDlg::_CaptureImage(CString filePath)
+void CMFC_ProblemDlg::_CaptureImage(const CString&& fileName)
 {
+	CString strTotalPath = m_strImageDirPath + fileName;
+
+	m_Image.Save(strTotalPath);
+}
+
+void CMFC_ProblemDlg::_OpenImage()
+{
+	// TRUE를 전달해 파일 열기 대화 상자를 엽니다.
+	CFileDialog fileDlg(TRUE, _T("bmp"), m_strImageDirPath,
+		OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR,
+		_T("BMP 파일 (*.bmp)|*.bmp||")); // 필터를 BMP 파일로 제한
+
+	if (fileDlg.DoModal() == IDOK) {
+		// 선택된 파일의 전체 경로
+		CString strFilePath = fileDlg.GetPathName();
+
+		if (m_Image.IsNull() == false)
+			m_Image.Destroy();
+
+		m_Image.Load(strFilePath);
+		_DrawImage();
+
+		POINT ptCenter = _FindCenterOfGravity();
+
+		// 텍스트를 그릴 사각형
+		SIZE textSize = { 200, 20 };
+		POINT ptOffset = { 1, 3 };
+		CRect rect = _MakeRectbyCenter(ptCenter, textSize);
+		rect += ptOffset;
+
+		// 좌표 텍스트
+		CString strText;
+		strText.Format(_T("X: %d, Y: %d"), ptCenter.x, ptCenter.y);
+
+		CClientDC dc(this);
+		dc.SetBkMode(TRANSPARENT);
+		dc.SetTextColor(RGB(255, 0, 0));
+
+		// X표시 그리기
+		dc.DrawText(_T("X"), &rect, DT_CENTER | DT_VCENTER);
+		dc.SetTextColor(RGB(128, 128, 128));
+
+		// 좌표 텍스트 그리기
+		int nOffsetY = 20;
+		rect.top += nOffsetY;
+		rect.bottom += nOffsetY;
+		dc.DrawText(strText, &rect, DT_CENTER | DT_VCENTER);
 
 
-	//m_Image.Save()
+		//this->GetDC()->DrawText(strText, &rect, DT_CENTER);
+	}
+}
+
+int CMFC_ProblemDlg::_GetPixel(const int nX, const int nY) const
+{
+	if (_IsValidPos(nX, nY))
+		return (int)((UINT8*)m_Image.GetBits())[nY*m_Image.GetPitch() + nX];
+
+	return -1;
+}
+
+POINT CMFC_ProblemDlg::_FindCenterOfGravity()
+{
+	UINT8* fm = (UINT8*)m_Image.GetBits();
+	int nWidth = m_Image.GetWidth();
+	int nHeight = m_Image.GetHeight();
+	int nCount = 0;
+	int nPixel;
+	POINT ptSumAndResult = {};
+
+	for (int y = 0; y < nHeight; ++y)
+	{
+		for (int x = 0; x < nWidth; ++x)
+		{
+			nPixel = _GetPixel(x, y);
+			if (nPixel != -1 && nPixel != GRAY_OF_BG)
+			{
+				ptSumAndResult.x += x;
+				ptSumAndResult.y += y;
+				++nCount;
+			}
+		}
+	}
+
+	ptSumAndResult.x /= nCount;
+	ptSumAndResult.y /= nCount;
+	return ptSumAndResult;
 }
 
 void CMFC_ProblemDlg::OnBnClickedBtnDraw()
 {
 	// TODO: Add your control notification handler code here
-	UINT8 nGrayOfBG = 0xff;
 	if (m_Image.IsNull())
 		_CreateImage();
 	else
-		memset(m_Image.GetBits(), nGrayOfBG, m_Image.GetWidth() * m_Image.GetHeight());
+		memset(m_Image.GetBits(), GRAY_OF_BG, m_Image.GetWidth() * m_Image.GetHeight());
 
 	UpdateData(TRUE);
 
@@ -315,4 +409,10 @@ void CMFC_ProblemDlg::OnBnClickedBtnAction()
 	m_nMsPerFrame = GetDlgItemInt(IDC_EDIT_MSPF);
 
 	_MoveCircle(m_nRadius, { m_nStartX, m_nStartY }, { m_nEndX, m_nEndY });
+}
+
+
+void CMFC_ProblemDlg::OnBnClickedBtnOpen()
+{
+	_OpenImage();
 }
