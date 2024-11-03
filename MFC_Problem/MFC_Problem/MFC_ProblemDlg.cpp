@@ -56,8 +56,8 @@ CMFC_ProblemDlg::CMFC_ProblemDlg(CWnd* pParent /*=NULL*/)
 	, m_strImageDirPath()
 	, m_nStartX(0)
 	, m_nStartY(0)
-	, m_nEndX(0)
-	, m_nEndY(0)
+	, m_nEndX(IMAGE_WIDTH)
+	, m_nEndY(IMAGE_HEIGHT)
 	, m_nFrams(10)
 	, m_nMsPerFrame(100)
 {
@@ -122,7 +122,7 @@ BOOL CMFC_ProblemDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 작은 아이콘을 설정합니다.
 
 	// TODO: 여기에 추가 초기화 작업을 추가합니다.
-
+	srand(time(NULL));
 
 	return TRUE;  // 포커스를 컨트롤에 설정하지 않으면 TRUE를 반환합니다.
 }
@@ -178,12 +178,10 @@ HCURSOR CMFC_ProblemDlg::OnQueryDragIcon()
 
 void CMFC_ProblemDlg::_CreateImage(UINT8 nGrayOfBG)
 {
-	int nWidth = 640;
-	int nHeight = 480;
 	int nBpp = 8;
 	constexpr int RGBSIZE = 256;
 
-	m_Image.Create(nWidth, -nHeight, nBpp);
+	m_Image.Create(IMAGE_WIDTH, -IMAGE_HEIGHT, nBpp);
 	if (nBpp == 8)
 	{
 		static RGBQUAD rgb[RGBSIZE];
@@ -338,9 +336,6 @@ void CMFC_ProblemDlg::_OpenImage()
 		rect.top += nOffsetY;
 		rect.bottom += nOffsetY;
 		dc.DrawText(strText, &rect, DT_CENTER | DT_VCENTER);
-
-
-		//this->GetDC()->DrawText(strText, &rect, DT_CENTER);
 	}
 }
 
@@ -380,6 +375,22 @@ POINT CMFC_ProblemDlg::_FindCenterOfGravity()
 	return ptSumAndResult;
 }
 
+POINT CMFC_ProblemDlg::_AdjustCircleCenter(const int nX, const int nY, const int nR)
+{
+	POINT result = { nX , nY };
+	if (nX - nR < 0)
+		result.x = nR;
+	else if (nX + nR > IMAGE_WIDTH)
+		result.x = IMAGE_WIDTH - nR;
+
+	if (nY - nR < 0)
+		result.y = nR;
+	else if (nY + nR > IMAGE_HEIGHT)
+		result.y = IMAGE_HEIGHT - nR;
+
+	return result;
+}
+
 void CMFC_ProblemDlg::OnBnClickedBtnDraw()
 {
 	// TODO: Add your control notification handler code here
@@ -390,9 +401,12 @@ void CMFC_ProblemDlg::OnBnClickedBtnDraw()
 
 	UpdateData(TRUE);
 
-	int nRadiusMin = 10;
-	int nRadiusMax = 100;
-	m_nRadius = rand() % (nRadiusMax - nRadiusMin) + nRadiusMin;
+	m_nRadius = rand() % (RADIUS_MAX - RADIUS_MIN) + RADIUS_MIN;
+	POINT ptAdjust = _AdjustCircleCenter(m_nStartX, m_nStartY, m_nRadius);
+	m_nStartX = ptAdjust.x;
+	m_nStartY = ptAdjust.y;
+
+	UpdateData(false);
 
 	_DrawCircle(m_nStartX, m_nStartY, m_nRadius);
 }
@@ -407,6 +421,12 @@ void CMFC_ProblemDlg::OnBnClickedBtnAction()
 	m_nEndY = GetDlgItemInt(IDC_EDIT_END_Y);
 	m_nFrams = GetDlgItemInt(IDC_EDIT_FRAMES);
 	m_nMsPerFrame = GetDlgItemInt(IDC_EDIT_MSPF);
+
+	POINT ptAdjust = _AdjustCircleCenter(m_nEndX, m_nEndY, m_nRadius);
+	m_nEndX = ptAdjust.x;
+	m_nEndY = ptAdjust.y;
+
+	UpdateData(false);
 
 	_MoveCircle(m_nRadius, { m_nStartX, m_nStartY }, { m_nEndX, m_nEndY });
 }

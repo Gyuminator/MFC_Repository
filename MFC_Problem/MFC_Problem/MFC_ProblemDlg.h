@@ -6,6 +6,12 @@
 
 // 이미지 배경 명암 0~255
 #define GRAY_OF_BG 255
+// 이미지 넓이 높이
+#define IMAGE_WIDTH 640
+#define IMAGE_HEIGHT 480
+// 반지름 최소, 최대
+#define RADIUS_MIN 10
+#define RADIUS_MAX 100
 
 // CMFC_ProblemDlg 대화 상자
 class CMFC_ProblemDlg : public CDialogEx
@@ -37,7 +43,7 @@ protected:
 	DECLARE_MESSAGE_MAP()
 
 private:
-	// private 멤버 함수 _
+	// private 멤버 함수는 _ 로 시작합니다.
 	void _CreateImage(UINT8 nGrayOfBG = GRAY_OF_BG);
 	void _DrawImage();
 	void _DrawCircle(int nCenterX, int nCenterY, int nRadius, UINT8 nGray = 0, bool bIsDraw = true);
@@ -68,10 +74,13 @@ private:
 
 	// 무게 중심을 찾습니다
 	POINT _FindCenterOfGravity();
+	// 그려질 원이 이미지에서 벗어난 경우 조정합니다.
+	POINT _AdjustCircleCenter(const int nX, const int nY, const int nR);
 
 public:
 	afx_msg void OnBnClickedBtnDraw();
 	afx_msg void OnBnClickedBtnAction();
+	afx_msg void OnBnClickedBtnOpen();
 private:
 	CImage m_Image;
 	CString m_strImageDirPath;
@@ -83,6 +92,4 @@ private:
 	int m_nFrams;
 	int m_nMsPerFrame;
 	int m_nRadius;
-public:
-	afx_msg void OnBnClickedBtnOpen();
 };
