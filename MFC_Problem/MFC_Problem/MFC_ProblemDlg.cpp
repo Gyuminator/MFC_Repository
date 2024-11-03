@@ -298,7 +298,7 @@ void CMFC_ProblemDlg::_OpenImage()
 {
 	// TRUE를 전달해 파일 열기 대화 상자를 엽니다.
 	CFileDialog fileDlg(TRUE, _T("bmp"), m_strImageDirPath,
-		OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR,
+		OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR, // OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR,
 		_T("BMP 파일 (*.bmp)|*.bmp||")); // 필터를 BMP 파일로 제한
 
 	if (fileDlg.DoModal() == IDOK) {
