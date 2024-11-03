@@ -1,0 +1,38 @@
+#include <string>
+#include <vector>
+
+using namespace std;
+
+int solution(string s) {
+    int answer = 0;
+    int sigh = 1;
+    int prevNum = 0;
+    int curNum = 0;
+    
+    for(char c : s)
+    {
+        if(c == ' ')
+        {
+            sigh = 1;
+            prevNum = curNum;
+            answer += curNum;
+            curNum = 0;
+        }
+        else if(c == 'Z')
+        {
+            answer -= prevNum;
+        }
+        else if(c == '-')
+        {
+            sigh = -1;
+        }
+        else
+        {
+            curNum *= 10;
+            curNum += sigh * (c - 48);
+        }
+    }
+    answer += curNum;
+    
+    return answer;
+}
